@@ -1,0 +1,10 @@
+# Dev tooling config for the Python automation tools.
+# (preventative_deploy is Terraform/Rego/YAML and is excluded from Python linting.)
+
+[tool.pytest.ini_options]
+testpaths = ["automations", "local_automations", "dev-workflow-automations"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+exclude = [".venv", "preventative_deploy"]

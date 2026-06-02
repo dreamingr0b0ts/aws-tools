@@ -4,6 +4,31 @@ A collection of small, self-contained automation scripts for AWS management,
 dev workflows, and local machine upkeep. Each tool lives in its own folder with
 a dedicated `README.md` and (where needed) a `requirements.txt`.
 
+## Governance model: detect → prevent → enforce at runtime
+
+The repo demonstrates the same controls — **required tags, encryption, no public
+exposure** — applied as **defense in depth** across the delivery lifecycle:
+
+```mermaid
+flowchart LR
+    Dev["Proposed change"] --> Gate["Preventive gate<br/>Terraform + OPA/Conftest"]
+    Gate -->|fail| Block["Blocked in CI"]
+    Gate -->|pass| Apply["Provision<br/>terraform apply"]
+    Apply --> Admit["Runtime gate<br/>Kyverno admission"]
+    Admit --> Cluster["Running workloads"]
+    Cluster --> Audit["Detective controls<br/>tag_compliance / s3_hygiene / security_posture"]
+    Audit -. "drift findings" .-> Dev
+```
+
+| Stage | Where | In this repo |
+|-------|-------|--------------|
+| **Preventive** | pre-merge (CI) | [`preventative_deploy`](preventative_deploy) — Terraform gated by OPA/Conftest (+ advisory Checkov) |
+| **Runtime** | admission control | [`preventative_deploy/runtime`](preventative_deploy/runtime) — kind + Kyverno reject non-compliant workloads |
+| **Detective** | continuous audit | the `automations/` scripts that find violations in a live account |
+
+The `automations/` tools are the *detective* layer; `preventative_deploy` shifts
+the same standards *left* (block before merge) and *down* (enforce at runtime).
+
 ## Conventions
 
 All tools share a few deliberate conventions:
@@ -61,6 +86,25 @@ cd ../resource_cleanup && pip install -r requirements.txt
 python3 resource_cleanup.py            # report only
 python3 resource_cleanup.py --delete   # actually remove (after review)
 ```
+
+## Testing & CI
+
+The Python tools have unit tests, and CI runs on every push/PR.
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+ruff check .      # lint
+pytest -q         # tests (stdlib + moto-mocked AWS)
+```
+
+- **Tests** live next to the tools they cover (`test_*.py`): `log_rotation`
+  (stdlib file ops), `s3_hygiene` and `resource_cleanup` (AWS mocked with
+  [moto](https://github.com/getmoto/moto) — no real account or credentials).
+- **`.github/workflows/python-ci.yml`** — runs `ruff` + `pytest`.
+- **`.github/workflows/policy-gate.yml`** — runs the `preventative_deploy`
+  policy gate: OPA/Conftest (blocking org policy) plus an advisory Checkov
+  baseline scan.
 
 ## Notes
 

@@ -24,7 +24,7 @@ def is_public(s3, bucket):
     except ClientError:
         pass
     try:
-        if s3.get_bucket_policy_status(Bucket=bucket)["PolicyStatus"]["IsPublic"]:
+        if s3.get_bucket_policy_status(Bucket=bucket)["PolicyStatus"].get("IsPublic"):
             return True
     except ClientError:
         pass

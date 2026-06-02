@@ -1,6 +1,10 @@
 # Policy gate for infrastructure changes.
-# Runs the Conftest policy unit tests and enforces the policy on a compliant
-# Terraform plan for every PR that touches preventative_deploy/.
+#
+# Two layers, on purpose:
+#   * policy        - OPA/Conftest enforcing ORG policy; BLOCKING.
+#   * checkov-scan  - Checkov broad security baseline; ADVISORY (soft-fail).
+# Custom OPA gates the merge; Checkov gives breadth without blocking on the
+# many baseline checks a minimal demo module won't satisfy.
 name: Policy Gate
 
 on:
@@ -32,3 +36,15 @@ jobs:
 
       - name: Enforce policy on a compliant plan (must pass)
         run: ./demo.sh compliant
+
+  checkov-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Checkov
+        run: pip install checkov
+      - name: Checkov baseline scan (advisory, non-blocking)
+        run: checkov -d preventative_deploy/terraform --compact --soft-fail

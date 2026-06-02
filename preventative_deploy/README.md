@@ -109,8 +109,17 @@ so there are no credentials to manage and nothing is ever created or billed.
 
 ## CI
 
-`.github/workflows/policy-gate.yml` (at the repo root) runs the policy unit
-tests and the compliant gate on every PR that touches `preventative_deploy/`.
+`.github/workflows/policy-gate.yml` (at the repo root) runs two layers on every
+PR that touches `preventative_deploy/`:
+
+- **OPA/Conftest — blocking.** The policy unit tests and the compliant-plan
+  gate; a violation fails the build.
+- **Checkov — advisory.** A broad security baseline scan (`--soft-fail`), for
+  breadth. Off-the-shelf scanners cover the wide CIS-style baseline; the custom
+  OPA policy enforces the org-specific rules and is the one that blocks. (The
+  minimal demo module intentionally won't satisfy every baseline check, which is
+  why Checkov runs advisory here.)
+
 It lives at the repo root because GitHub only runs workflows from
 `.github/workflows/`.
 
