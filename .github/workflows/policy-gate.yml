@@ -1,7 +1,6 @@
 # Policy gate for infrastructure changes.
-#
-# To activate in the repo, copy this file to: .github/workflows/policy-gate.yml
-# (GitHub only runs workflows from .github/workflows at the repo root.)
+# Runs the Conftest policy unit tests and enforces the policy on a compliant
+# Terraform plan for every PR that touches preventative_deploy/.
 name: Policy Gate
 
 on:

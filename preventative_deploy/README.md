@@ -109,9 +109,10 @@ so there are no credentials to manage and nothing is ever created or billed.
 
 ## CI
 
-`ci/policy-gate.yml` runs the policy unit tests and the compliant gate on every
-PR that touches `preventative_deploy/`. Copy it to `.github/workflows/` at the
-repo root to activate it (GitHub only runs workflows from that path).
+`.github/workflows/policy-gate.yml` (at the repo root) runs the policy unit
+tests and the compliant gate on every PR that touches `preventative_deploy/`.
+It lives at the repo root because GitHub only runs workflows from
+`.github/workflows/`.
 
 ## Runtime enforcement (kind + Kyverno)
 
