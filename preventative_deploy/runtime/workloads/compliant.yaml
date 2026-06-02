@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compliant-app
+  labels:
+    owner: platform-team
+    environment: dev
+    cost-center: "1234"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: compliant-app
+  template:
+    metadata:
+      labels:
+        app: compliant-app
+        owner: platform-team
+        environment: dev
+        cost-center: "1234"
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.27
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false

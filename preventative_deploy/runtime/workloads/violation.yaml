@@ -1,0 +1,21 @@
+# Breaks all three policies: missing required labels, privileged container,
+# and no resource limits. Kyverno rejects this at admission time.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: violation-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: violation-app
+  template:
+    metadata:
+      labels:
+        app: violation-app
+    spec:
+      containers:
+        - name: app
+          image: nginx:latest
+          securityContext:
+            privileged: true

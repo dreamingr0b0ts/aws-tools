@@ -1,0 +1,21 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-org-labels
+spec:
+  validationFailureAction: Enforce
+  background: false
+  rules:
+    - name: require-owner-env-costcenter
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: "Missing required labels: owner, environment, cost-center."
+        pattern:
+          metadata:
+            labels:
+              owner: "?*"
+              environment: "?*"
+              cost-center: "?*"

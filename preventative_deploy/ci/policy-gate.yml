@@ -1,0 +1,35 @@
+# Policy gate for infrastructure changes.
+#
+# To activate in the repo, copy this file to: .github/workflows/policy-gate.yml
+# (GitHub only runs workflows from .github/workflows at the repo root.)
+name: Policy Gate
+
+on:
+  pull_request:
+    paths: ["preventative_deploy/**"]
+  workflow_dispatch:
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: preventative_deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Install Conftest
+        run: |
+          VER=0.56.0
+          curl -sSfL "https://github.com/open-policy-agent/conftest/releases/download/v${VER}/conftest_${VER}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+
+      - name: Policy unit tests
+        run: conftest verify -p policy
+
+      - name: Enforce policy on a compliant plan (must pass)
+        run: ./demo.sh compliant
