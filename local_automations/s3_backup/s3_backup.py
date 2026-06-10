@@ -9,6 +9,7 @@ stored in each object's metadata (robust against S3 multipart ETags).
     python3 s3_backup.py my-bucket ~/Documents --dry-run
     python3 s3_backup.py my-bucket ~/Documents --create-bucket --region us-west-2
 """
+
 import argparse
 import hashlib
 import os
@@ -20,7 +21,9 @@ from botocore.exceptions import ClientError
 
 
 def md5(path, chunk=1 << 20):
-    h = hashlib.md5()
+    # Used only for change detection, not security; the flag keeps scanners
+    # (Bandit/Checkov) from flagging md5.
+    h = hashlib.md5(usedforsecurity=False)
     with open(path, "rb") as f:
         for block in iter(lambda: f.read(chunk), b""):
             h.update(block)
@@ -32,15 +35,13 @@ def ensure_bucket(s3, bucket, region, create):
         s3.head_bucket(Bucket=bucket)
     except ClientError:
         if not create:
-            sys.exit(f"error: bucket '{bucket}' not found "
-                     "(pass --create-bucket to create it)")
+            sys.exit(f"error: bucket '{bucket}' not found (pass --create-bucket to create it)")
         kwargs = {"Bucket": bucket}
         if region != "us-east-1":
             kwargs["CreateBucketConfiguration"] = {"LocationConstraint": region}
         s3.create_bucket(**kwargs)
         print(f"created bucket {bucket}")
-    s3.put_bucket_versioning(
-        Bucket=bucket, VersioningConfiguration={"Status": "Enabled"})
+    s3.put_bucket_versioning(Bucket=bucket, VersioningConfiguration={"Status": "Enabled"})
 
 
 def changed(s3, bucket, key, digest):
@@ -57,7 +58,7 @@ def iter_files(paths):
             print(f"! skip missing path: {root}")
             continue
         base = root.parent
-        for f in (root.rglob("*") if root.is_dir() else [root]):
+        for f in root.rglob("*") if root.is_dir() else [root]:
             if f.is_file():
                 yield f, f.relative_to(base).as_posix()
 
@@ -68,10 +69,16 @@ def main():
     p.add_argument("paths", nargs="+", help="Folders (or files) to back up.")
     p.add_argument("--prefix", default="", help="Key prefix within the bucket.")
     p.add_argument("--region", default=os.environ.get("AWS_REGION", "us-east-1"))
-    p.add_argument("--create-bucket", action="store_true",
-                   help="Create the bucket (with versioning) if it doesn't exist.")
-    p.add_argument("--dry-run", action="store_true",
-                   help="List candidate files locally without contacting AWS.")
+    p.add_argument(
+        "--create-bucket",
+        action="store_true",
+        help="Create the bucket (with versioning) if it doesn't exist.",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List candidate files locally without contacting AWS.",
+    )
     args = p.parse_args()
 
     prefix = args.prefix.strip("/")
@@ -89,8 +96,7 @@ def main():
             continue
         digest = md5(f)
         if changed(s3, args.bucket, key, digest):
-            s3.upload_file(str(f), args.bucket, key,
-                           ExtraArgs={"Metadata": {"md5": digest}})
+            s3.upload_file(str(f), args.bucket, key, ExtraArgs={"Metadata": {"md5": digest}})
             print(f"  uploaded {key}")
             uploaded += 1
         else:

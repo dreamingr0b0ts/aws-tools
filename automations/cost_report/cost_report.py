@@ -4,6 +4,7 @@
 Posts to the Slack incoming webhook in SLACK_WEBHOOK_URL if set, otherwise
 prints to stdout only. Cost Explorer is global; its endpoint lives in us-east-1.
 """
+
 import json
 import os
 import urllib.request
@@ -51,7 +52,11 @@ def post_to_slack(text):
         data=json.dumps({"text": text}).encode(),
         headers={"Content-Type": "application/json"},
     )
-    urllib.request.urlopen(req, timeout=10)
+    try:
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:  # a flaky webhook shouldn't fail the cost report
+        print(f"\n[Slack post failed: {e}]")
+        return False
     return True
 
 
@@ -66,13 +71,18 @@ def main():
     daily = summarize(get_costs("DAILY", yesterday.isoformat(), today.isoformat()))
     monthly = summarize(get_costs("MONTHLY", month_start.isoformat(), today.isoformat()))
 
-    report = "\n\n".join([
-        format_report(f"Daily spend ({yesterday})", daily),
-        format_report(f"Month-to-date ({month_start} \u2192 {today})", monthly),
-    ])
+    report = "\n\n".join(
+        [
+            format_report(f"Daily spend ({yesterday})", daily),
+            format_report(f"Month-to-date ({month_start} \u2192 {today})", monthly),
+        ]
+    )
     print(report)
-    print("\n[posted to Slack]" if post_to_slack(report)
-          else "\n[SLACK_WEBHOOK_URL not set; printed only]")
+    print(
+        "\n[posted to Slack]"
+        if post_to_slack(report)
+        else "\n[SLACK_WEBHOOK_URL not set; printed only]"
+    )
 
 
 if __name__ == "__main__":

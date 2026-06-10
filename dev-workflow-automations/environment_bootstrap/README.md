@@ -40,7 +40,7 @@ install step required to run it.
 
 ## Requirements
 
-- Python 3.9+ (for the generated project; the script runs on 3.8+)
+- Python 3.11+ (for the generated project; the script itself is stdlib-only)
 - `git` on PATH
 - Network access for step 4 (or use `--skip-install`)
 

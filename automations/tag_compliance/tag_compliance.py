@@ -7,6 +7,7 @@ across services in a region.
 Report-only by default. Pass --apply together with --set KEY=VALUE pairs to fill
 in missing tags; only the missing keys are written on each resource.
 """
+
 import argparse
 
 import boto3
@@ -16,6 +17,8 @@ DEFAULT_REQUIRED = ["owner", "environment", "cost-center"]
 
 
 def all_regions():
+    # Intentionally duplicated across tools: each script is self-contained
+    # (its own folder + venv) so it can be copied/run in isolation.
     ec2 = boto3.client("ec2", region_name="us-east-1")
     return [r["RegionName"] for r in ec2.describe_regions()["Regions"]]
 
@@ -41,8 +44,7 @@ def scan_region(region, required, apply, values):
             to_set = {k: values[k] for k in missing if k in values}
             if to_set:
                 client.tag_resources(ResourceARNList=[arn], Tags=to_set)
-                print("    -> tagged: "
-                      + ", ".join(f"{k}={v}" for k, v in to_set.items()))
+                print("    -> tagged: " + ", ".join(f"{k}={v}" for k, v in to_set.items()))
     if printed:
         print()
 
@@ -57,14 +59,25 @@ def parse_set(pairs):
 
 def main():
     p = argparse.ArgumentParser(description="Report or fix missing required tags.")
-    p.add_argument("--required", nargs="*", default=DEFAULT_REQUIRED,
-                   help=f"Required tag keys (default: {' '.join(DEFAULT_REQUIRED)}).")
-    p.add_argument("--apply", action="store_true",
-                   help="Write missing tags using --set values (default: report only).")
-    p.add_argument("--set", nargs="*", dest="set_pairs", metavar="KEY=VALUE",
-                   help="Default values for missing tags, e.g. owner=alice environment=prod.")
-    p.add_argument("--regions", nargs="*",
-                   help="Regions to scan (default: all enabled regions).")
+    p.add_argument(
+        "--required",
+        nargs="*",
+        default=DEFAULT_REQUIRED,
+        help=f"Required tag keys (default: {' '.join(DEFAULT_REQUIRED)}).",
+    )
+    p.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write missing tags using --set values (default: report only).",
+    )
+    p.add_argument(
+        "--set",
+        nargs="*",
+        dest="set_pairs",
+        metavar="KEY=VALUE",
+        help="Default values for missing tags, e.g. owner=alice environment=prod.",
+    )
+    p.add_argument("--regions", nargs="*", help="Regions to scan (default: all enabled regions).")
     args = p.parse_args()
 
     values = parse_set(args.set_pairs)

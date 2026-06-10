@@ -8,6 +8,7 @@ and exits non-zero (handy for cron/monitoring).
     python3 health_checks.py --mounts / /data --disk-threshold 90 \\
         --service docker postgres
 """
+
 import argparse
 import json
 import os
@@ -26,16 +27,14 @@ def check_disk(mounts, threshold):
             results.append((False, f"disk {m}: path not found"))
             continue
         pct = u.used / u.total * 100
-        results.append((pct < threshold,
-                        f"disk {m}: {pct:.0f}% used ({u.free / 1e9:.1f} GB free)"))
+        results.append((pct < threshold, f"disk {m}: {pct:.0f}% used ({u.free / 1e9:.1f} GB free)"))
     return results
 
 
 def is_running(name):
     # Portable across macOS (comm is a full path) and Linux (bare name, which
     # the kernel truncates to 15 chars -- tolerated below).
-    out = subprocess.run(["ps", "-A", "-o", "comm="],
-                         capture_output=True, text=True).stdout
+    out = subprocess.run(["ps", "-A", "-o", "comm="], capture_output=True, text=True).stdout
     for line in out.splitlines():
         comm = os.path.basename(line.strip())
         if comm == name or (len(comm) == 15 and name.startswith(comm)):
@@ -51,29 +50,48 @@ def check_services(names):
     return out
 
 
+def osa_escape(s):
+    # Escape for embedding inside an AppleScript double-quoted string literal:
+    # backslashes first, then double-quotes, so a stray quote can't break the
+    # `display notification "..."` command.
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def notify_remote(title, body):
     url = os.environ.get("SLACK_WEBHOOK_URL")
     if url:
         try:
             req = urllib.request.Request(
-                url, data=json.dumps({"text": f"*{title}*\n```{body}```"}).encode(),
-                headers={"Content-Type": "application/json"})
+                url,
+                data=json.dumps({"text": f"*{title}*\n```{body}```"}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
             urllib.request.urlopen(req, timeout=10)
         except Exception as e:
             print(f"! Slack notify failed: {e}")
     if sys.platform == "darwin" and shutil.which("osascript"):
-        subprocess.run(["osascript", "-e",
-                        f'display notification "{title}" with title "Health check"'])
+        safe = osa_escape(title)
+        subprocess.run(
+            ["osascript", "-e", f'display notification "{safe}" with title "Health check"']
+        )
 
 
 def main():
     p = argparse.ArgumentParser(description="Local disk/service health checks.")
-    p.add_argument("--mounts", nargs="*", default=["/"],
-                   help="Mount points to check (default: /).")
-    p.add_argument("--disk-threshold", type=int, default=90,
-                   help="Alert when disk usage %% is at or above this (default: 90).")
-    p.add_argument("--service", nargs="*", default=[], dest="services",
-                   help="Process names that must be running.")
+    p.add_argument("--mounts", nargs="*", default=["/"], help="Mount points to check (default: /).")
+    p.add_argument(
+        "--disk-threshold",
+        type=int,
+        default=90,
+        help="Alert when disk usage %% is at or above this (default: 90).",
+    )
+    p.add_argument(
+        "--service",
+        nargs="*",
+        default=[],
+        dest="services",
+        help="Process names that must be running.",
+    )
     args = p.parse_args()
 
     results = check_disk(args.mounts, args.disk_threshold) + check_services(args.services)

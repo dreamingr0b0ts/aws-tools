@@ -10,6 +10,7 @@ DRY-RUN by default; pass --run to actually compress/delete.
     python3 log_rotation.py ~/myapp/logs
     python3 log_rotation.py ~/logs --compress-days 7 --delete-days 30 --run
 """
+
 import argparse
 import gzip
 import os
@@ -26,7 +27,7 @@ def find(paths, pattern, recursive):
             print(f"! skip non-directory: {d}")
             continue
         for pat in (pattern, pattern + ".gz"):
-            for f in (d.rglob(pat) if recursive else d.glob(pat)):
+            for f in d.rglob(pat) if recursive else d.glob(pat):
                 if f.is_file() and f not in seen:
                     seen.add(f)
                     yield f
@@ -45,19 +46,28 @@ def main():
     p = argparse.ArgumentParser(description="Rotate/clean up local log files.")
     p.add_argument("paths", nargs="+", help="Log directories to process.")
     p.add_argument("--pattern", default="*.log", help="Log filename glob (default: *.log).")
-    p.add_argument("--compress-days", type=int, default=7,
-                   help="Gzip logs older than this many days (default: 7).")
-    p.add_argument("--delete-days", type=int, default=30,
-                   help="Delete logs older than this many days (default: 30).")
-    p.add_argument("-r", "--recursive", action="store_true",
-                   help="Recurse into subdirectories.")
+    p.add_argument(
+        "--compress-days",
+        type=int,
+        default=7,
+        help="Gzip logs older than this many days (default: 7).",
+    )
+    p.add_argument(
+        "--delete-days",
+        type=int,
+        default=30,
+        help="Delete logs older than this many days (default: 30).",
+    )
+    p.add_argument("-r", "--recursive", action="store_true", help="Recurse into subdirectories.")
     p.add_argument("--run", action="store_true", help="Apply changes (default: dry-run).")
     args = p.parse_args()
 
     now = time.time()
     mode = "RUN" if args.run else "DRY-RUN"
-    print(f"=== Log rotation [{mode}] | compress >{args.compress_days}d, "
-          f"delete >{args.delete_days}d ===\n")
+    print(
+        f"=== Log rotation [{mode}] | compress >{args.compress_days}d, "
+        f"delete >{args.delete_days}d ===\n"
+    )
 
     compressed = deleted = freed = 0
     for f in find(args.paths, args.pattern, args.recursive):
@@ -75,8 +85,10 @@ def main():
                 compress(f)
             compressed += 1
 
-    print(f"\ncompressed {compressed}, deleted {deleted}, "
-          f"reclaimed ~{freed / 1e6:.1f} MB (deletions only).")
+    print(
+        f"\ncompressed {compressed}, deleted {deleted}, "
+        f"reclaimed ~{freed / 1e6:.1f} MB (deletions only)."
+    )
 
 
 if __name__ == "__main__":

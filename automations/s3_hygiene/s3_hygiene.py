@@ -4,12 +4,12 @@
 Read-only: lists every bucket in the account and flags hygiene issues. Each
 bucket is queried against its own region to avoid redirect errors.
 """
+
 import boto3
 from botocore.exceptions import ClientError
 
 PUBLIC_GROUPS = ("AllUsers", "AuthenticatedUsers")
-PAB_KEYS = ("BlockPublicAcls", "IgnorePublicAcls",
-            "BlockPublicPolicy", "RestrictPublicBuckets")
+PAB_KEYS = ("BlockPublicAcls", "IgnorePublicAcls", "BlockPublicPolicy", "RestrictPublicBuckets")
 
 
 def bucket_region(s3, bucket):
@@ -42,8 +42,7 @@ def is_unencrypted(s3, bucket):
         s3.get_bucket_encryption(Bucket=bucket)
         return False
     except ClientError as e:
-        return e.response["Error"]["Code"] == \
-            "ServerSideEncryptionConfigurationNotFoundError"
+        return e.response["Error"]["Code"] == "ServerSideEncryptionConfigurationNotFoundError"
 
 
 def lacks_lifecycle(s3, bucket):

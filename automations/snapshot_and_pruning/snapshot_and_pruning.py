@@ -11,17 +11,20 @@ marked with the tag 'auto-snapshot=1'; RDS snapshots use the identifier prefix
 
 DRY-RUN by default. Pass --run to actually create and delete snapshots.
 """
+
 import argparse
 from datetime import datetime, timedelta, timezone
 
 import boto3
 from botocore.exceptions import ClientError
 
-MARKER = "auto-snapshot"   # tag key set on EBS snapshots we create
-RDS_PREFIX = "auto"        # identifier prefix on RDS snapshots we create
+MARKER = "auto-snapshot"  # tag key set on EBS snapshots we create
+RDS_PREFIX = "auto"  # identifier prefix on RDS snapshots we create
 
 
 def all_regions():
+    # Intentionally duplicated across tools: each script is self-contained
+    # (its own folder + venv) so it can be copied/run in isolation.
     ec2 = boto3.client("ec2", region_name="us-east-1")
     return [r["RegionName"] for r in ec2.describe_regions()["Regions"]]
 
@@ -31,8 +34,13 @@ def stamp():
 
 
 def backup_ebs(ec2, tag_key, tag_value, run, out):
-    vols = ec2.describe_volumes(
-        Filters=[{"Name": f"tag:{tag_key}", "Values": [tag_value]}])["Volumes"]
+    vols = [
+        v
+        for page in ec2.get_paginator("describe_volumes").paginate(
+            Filters=[{"Name": f"tag:{tag_key}", "Values": [tag_value]}]
+        )
+        for v in page["Volumes"]
+    ]
     for v in vols:
         vid = v["VolumeId"]
         out.append(f"  EBS snapshot of {vid}")
@@ -40,18 +48,27 @@ def backup_ebs(ec2, tag_key, tag_value, run, out):
             ec2.create_snapshot(
                 VolumeId=vid,
                 Description=f"auto {vid} {stamp()}",
-                TagSpecifications=[{
-                    "ResourceType": "snapshot",
-                    "Tags": [{"Key": MARKER, "Value": "1"},
-                             {"Key": "source-volume", "Value": vid}],
-                }])
+                TagSpecifications=[
+                    {
+                        "ResourceType": "snapshot",
+                        "Tags": [
+                            {"Key": MARKER, "Value": "1"},
+                            {"Key": "source-volume", "Value": vid},
+                        ],
+                    }
+                ],
+            )
             out.append("    -> created")
 
 
 def prune_ebs(ec2, cutoff, run, out):
-    snaps = ec2.describe_snapshots(
-        OwnerIds=["self"],
-        Filters=[{"Name": f"tag:{MARKER}", "Values": ["1"]}])["Snapshots"]
+    snaps = [
+        s
+        for page in ec2.get_paginator("describe_snapshots").paginate(
+            OwnerIds=["self"], Filters=[{"Name": f"tag:{MARKER}", "Values": ["1"]}]
+        )
+        for s in page["Snapshots"]
+    ]
     for s in snaps:
         if s["StartTime"] < cutoff:
             out.append(f"  prune EBS snapshot {s['SnapshotId']} ({s['StartTime'].date()})")
@@ -61,9 +78,16 @@ def prune_ebs(ec2, cutoff, run, out):
 
 
 def backup_rds(rds, tag_key, tag_value, run, out):
-    for db in rds.describe_db_instances()["DBInstances"]:
-        tags = {t["Key"]: t["Value"] for t in
-                rds.list_tags_for_resource(ResourceName=db["DBInstanceArn"])["TagList"]}
+    instances = [
+        db
+        for page in rds.get_paginator("describe_db_instances").paginate()
+        for db in page["DBInstances"]
+    ]
+    for db in instances:
+        tags = {
+            t["Key"]: t["Value"]
+            for t in rds.list_tags_for_resource(ResourceName=db["DBInstanceArn"])["TagList"]
+        }
         if tags.get(tag_key) != tag_value:
             continue
         dbid = db["DBInstanceIdentifier"]
@@ -71,15 +95,24 @@ def backup_rds(rds, tag_key, tag_value, run, out):
         out.append(f"  RDS snapshot of {dbid} -> {snap_id}")
         if run:
             rds.create_db_snapshot(
-                DBInstanceIdentifier=dbid, DBSnapshotIdentifier=snap_id,
-                Tags=[{"Key": MARKER, "Value": "1"}])
+                DBInstanceIdentifier=dbid,
+                DBSnapshotIdentifier=snap_id,
+                Tags=[{"Key": MARKER, "Value": "1"}],
+            )
             out.append("    -> created")
 
 
 def prune_rds(rds, cutoff, run, out):
-    for s in rds.describe_db_snapshots(SnapshotType="manual")["DBSnapshots"]:
-        if s["DBSnapshotIdentifier"].startswith(RDS_PREFIX + "-") \
-                and s["SnapshotCreateTime"] < cutoff:
+    snapshots = [
+        s
+        for page in rds.get_paginator("describe_db_snapshots").paginate(SnapshotType="manual")
+        for s in page["DBSnapshots"]
+    ]
+    for s in snapshots:
+        if (
+            s["DBSnapshotIdentifier"].startswith(RDS_PREFIX + "-")
+            and s["SnapshotCreateTime"] < cutoff
+        ):
             sid = s["DBSnapshotIdentifier"]
             out.append(f"  prune RDS snapshot {sid} ({s['SnapshotCreateTime'].date()})")
             if run:
@@ -88,24 +121,29 @@ def prune_rds(rds, cutoff, run, out):
 
 
 def main():
-    p = argparse.ArgumentParser(
-        description="Schedule EBS/RDS snapshots with retention pruning.")
-    p.add_argument("--run", action="store_true",
-                   help="Actually create/delete snapshots (default: dry-run).")
-    p.add_argument("--retention-days", type=int, default=7,
-                   help="Delete tool-created snapshots older than this (default 7).")
-    p.add_argument("--tag-key", default="backup",
-                   help="Selection tag key (default: backup).")
-    p.add_argument("--tag-value", default="true",
-                   help="Selection tag value (default: true).")
-    p.add_argument("--regions", nargs="*",
-                   help="Regions to operate in (default: all enabled regions).")
+    p = argparse.ArgumentParser(description="Schedule EBS/RDS snapshots with retention pruning.")
+    p.add_argument(
+        "--run", action="store_true", help="Actually create/delete snapshots (default: dry-run)."
+    )
+    p.add_argument(
+        "--retention-days",
+        type=int,
+        default=7,
+        help="Delete tool-created snapshots older than this (default 7).",
+    )
+    p.add_argument("--tag-key", default="backup", help="Selection tag key (default: backup).")
+    p.add_argument("--tag-value", default="true", help="Selection tag value (default: true).")
+    p.add_argument(
+        "--regions", nargs="*", help="Regions to operate in (default: all enabled regions)."
+    )
     args = p.parse_args()
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=args.retention_days)
     mode = "RUN" if args.run else "DRY-RUN"
-    print(f"=== Snapshot scheduler [{mode}] | select {args.tag_key}={args.tag_value} "
-          f"| retention {args.retention_days}d ===\n")
+    print(
+        f"=== Snapshot scheduler [{mode}] | select {args.tag_key}={args.tag_value} "
+        f"| retention {args.retention_days}d ===\n"
+    )
 
     for region in args.regions or all_regions():
         ec2 = boto3.client("ec2", region_name=region)

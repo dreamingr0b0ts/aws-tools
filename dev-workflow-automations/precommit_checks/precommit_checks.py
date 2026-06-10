@@ -10,6 +10,7 @@ Exits non-zero (blocking the commit) if formatting fails, lint finds issues, or
 tests fail. Missing tools (ruff / pytest) are skipped with a warning. Tools are
 taken from ./.venv if present, otherwise from PATH.
 """
+
 import argparse
 import os
 import shutil
@@ -53,8 +54,11 @@ def install():
 
 def main():
     p = argparse.ArgumentParser(description="Format, lint and test staged Python files.")
-    p.add_argument("--install", action="store_true",
-                   help="Install this script as the repo's git pre-commit hook.")
+    p.add_argument(
+        "--install",
+        action="store_true",
+        help="Install this script as the repo's git pre-commit hook.",
+    )
     args = p.parse_args()
     if args.install:
         install()

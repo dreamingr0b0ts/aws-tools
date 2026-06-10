@@ -9,6 +9,7 @@ Usage:
 
 Uses only the Python standard library.
 """
+
 import argparse
 import os
 import subprocess
@@ -37,7 +38,7 @@ PYPROJECT = """\
 [project]
 name = "{name}"
 version = "0.1.0"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 
 [tool.ruff]
 line-length = 100
@@ -83,10 +84,14 @@ def main():
     p = argparse.ArgumentParser(description="Bootstrap a new Python project.")
     p.add_argument("path", help="Target project directory.")
     p.add_argument("--name", help="Package name (default: directory name).")
-    p.add_argument("--force", action="store_true",
-                   help="Allow bootstrapping into a non-empty directory.")
-    p.add_argument("--skip-install", action="store_true",
-                   help="Create the venv but skip 'pip install' of dev deps.")
+    p.add_argument(
+        "--force", action="store_true", help="Allow bootstrapping into a non-empty directory."
+    )
+    p.add_argument(
+        "--skip-install",
+        action="store_true",
+        help="Create the venv but skip 'pip install' of dev deps.",
+    )
     args = p.parse_args()
 
     target = Path(args.path).expanduser().resolve()
@@ -109,8 +114,10 @@ def main():
     run([sys.executable, "-m", "venv", ".venv"], target)
 
     if not args.skip_install:
-        if run([venv_bin(target, "pip"), "install", "-q", "-r",
-                "requirements-dev.txt"], target) != 0:
+        if (
+            run([venv_bin(target, "pip"), "install", "-q", "-r", "requirements-dev.txt"], target)
+            != 0
+        ):
             print("  ! dev dependency install failed (install later manually)")
 
     hook = target / ".git" / "hooks" / "pre-commit"

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Report basic AWS security-posture issues (read-only):
 
-  * Whether the root account has MFA enabled
-  * IAM users without an MFA device
-  * Active access keys older than --days (default 90)
-  * Security groups allowing inbound traffic from anywhere (0.0.0.0/0 or ::/0)
+* Whether the root account has MFA enabled
+* IAM users without an MFA device
+* Active access keys older than --days (default 90)
+* Security groups allowing inbound traffic from anywhere (0.0.0.0/0 or ::/0)
 """
+
 import argparse
 from datetime import datetime, timedelta, timezone
 
@@ -14,6 +15,8 @@ from botocore.exceptions import ClientError
 
 
 def all_regions():
+    # Intentionally duplicated across tools: each script is self-contained
+    # (its own folder + venv) so it can be copied/run in isolation.
     ec2 = boto3.client("ec2", region_name="us-east-1")
     return [r["RegionName"] for r in ec2.describe_regions()["Regions"]]
 
@@ -38,11 +41,17 @@ def iam_findings(days):
 def open_security_groups(region):
     ec2 = boto3.client("ec2", region_name=region)
     flagged = []
-    for sg in ec2.describe_security_groups()["SecurityGroups"]:
+    groups = [
+        sg
+        for page in ec2.get_paginator("describe_security_groups").paginate()
+        for sg in page["SecurityGroups"]
+    ]
+    for sg in groups:
         opens = []
         for perm in sg["IpPermissions"]:
-            world = (any(r.get("CidrIp") == "0.0.0.0/0" for r in perm.get("IpRanges", []))
-                     or any(r.get("CidrIpv6") == "::/0" for r in perm.get("Ipv6Ranges", [])))
+            world = any(r.get("CidrIp") == "0.0.0.0/0" for r in perm.get("IpRanges", [])) or any(
+                r.get("CidrIpv6") == "::/0" for r in perm.get("Ipv6Ranges", [])
+            )
             if not world:
                 continue
             proto = perm.get("IpProtocol")
@@ -58,10 +67,12 @@ def open_security_groups(region):
 
 def main():
     p = argparse.ArgumentParser(description="Report basic AWS security-posture issues.")
-    p.add_argument("--days", type=int, default=90,
-                   help="Active access key age threshold in days (default 90).")
-    p.add_argument("--regions", nargs="*",
-                   help="Regions for the security-group scan (default: all enabled).")
+    p.add_argument(
+        "--days", type=int, default=90, help="Active access key age threshold in days (default 90)."
+    )
+    p.add_argument(
+        "--regions", nargs="*", help="Regions for the security-group scan (default: all enabled)."
+    )
     args = p.parse_args()
 
     print("=== Security posture ===\n")

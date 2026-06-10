@@ -89,19 +89,24 @@ python3 resource_cleanup.py --delete   # actually remove (after review)
 
 ## Testing & CI
 
-The Python tools have unit tests, and CI runs on every push/PR.
+Every Python tool has unit tests, and CI runs on every push/PR. The tools
+target **Python 3.11+**.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-ruff check .      # lint
-pytest -q         # tests (stdlib + moto-mocked AWS)
+ruff format --check .   # formatting
+ruff check .            # lint
+pytest -q               # tests (stdlib + moto-mocked AWS)
 ```
 
-- **Tests** live next to the tools they cover (`test_*.py`): `log_rotation`
-  (stdlib file ops), `s3_hygiene` and `resource_cleanup` (AWS mocked with
-  [moto](https://github.com/getmoto/moto) — no real account or credentials).
-- **`.github/workflows/python-ci.yml`** — runs `ruff` + `pytest`.
+- **Tests** live next to the tools they cover (`test_*.py`). Pure/stdlib logic
+  (e.g. `log_rotation`, `cost_report`, `release_helper`, `health_checks`) is
+  tested directly; anything touching AWS (`s3_hygiene`, `resource_cleanup`,
+  `security_posture`, `snapshot_and_pruning`, `s3_backup`) is mocked with
+  [moto](https://github.com/getmoto/moto) — no real account or credentials.
+- **`.github/workflows/python-ci.yml`** — runs `ruff format --check`, `ruff
+  check`, and `pytest` across Python 3.11 and 3.13.
 - **`.github/workflows/policy-gate.yml`** — runs the `preventative_deploy`
   policy gate: OPA/Conftest (blocking org policy) plus an advisory Checkov
   baseline scan.
