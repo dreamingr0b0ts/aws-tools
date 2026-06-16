@@ -62,6 +62,11 @@ def main():
     )
     p.add_argument("--set", dest="exact", help="Set an explicit version X.Y.Z.")
     p.add_argument("--push", action="store_true", help="Push the commit and tag to origin.")
+    p.add_argument(
+        "--allow-main",
+        action="store_true",
+        help="Permit --push while on the main/master branch (default: refuse).",
+    )
     p.add_argument("--dry-run", action="store_true", help="Preview without changing anything.")
     p.add_argument("--allow-dirty", action="store_true", help="Skip the clean-working-tree check.")
     args = p.parse_args()
@@ -74,6 +79,15 @@ def main():
         sys.exit("error: pyproject.toml not found in current directory")
     if not args.allow_dirty and sh(["git", "status", "--porcelain"]):
         sys.exit("error: working tree not clean (commit/stash first, or --allow-dirty)")
+
+    # Fail fast (before committing/tagging) if asked to push the release
+    # straight to a protected default branch.
+    branch = sh(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    if args.push and not args.dry_run and branch in ("main", "master") and not args.allow_main:
+        sys.exit(
+            f"error: refusing to push a release directly to '{branch}'. "
+            "Release from a branch and open a PR, or pass --allow-main to override."
+        )
 
     cur = read_version(pp)
     if args.exact:
@@ -99,7 +113,6 @@ def main():
     print(f"Committed and tagged {tag}.")
 
     if args.push:
-        branch = sh(["git", "rev-parse", "--abbrev-ref", "HEAD"])
         sh(["git", "push", "origin", branch])
         sh(["git", "push", "origin", tag])
         print(f"Pushed {branch} and {tag} to origin.")

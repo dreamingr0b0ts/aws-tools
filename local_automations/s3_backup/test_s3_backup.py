@@ -1,6 +1,8 @@
 import hashlib
 
 import boto3
+import pytest
+from botocore.exceptions import ClientError
 from moto import mock_aws
 
 import s3_backup
@@ -38,3 +40,18 @@ def test_changed_true_when_absent_then_false_after_upload(tmp_path):
         s3.put_object(Bucket="my-backup-bucket", Key="k", Body=b"x", Metadata={"md5": digest})
         assert s3_backup.changed(s3, "my-backup-bucket", "k", digest) is False
         assert s3_backup.changed(s3, "my-backup-bucket", "k", "different") is True
+
+
+class _RaisingS3:
+    """Minimal stand-in whose head_object raises a non-404 ClientError."""
+
+    def head_object(self, **_):
+        raise ClientError({"Error": {"Code": "AccessDenied", "Message": "nope"}}, "HeadObject")
+
+
+def test_changed_reraises_non_404_errors():
+    # AccessDenied / throttling must not be masked as "changed" (which would
+    # silently re-upload); the error should propagate so the problem surfaces.
+    with pytest.raises(ClientError) as exc:
+        s3_backup.changed(_RaisingS3(), "bucket", "key", "digest")
+    assert exc.value.response["Error"]["Code"] == "AccessDenied"

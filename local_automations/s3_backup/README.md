@@ -14,7 +14,9 @@ files are uploaded on each run.
 3. **Change detection** — computes each file's md5 and compares it to an `md5`
    value stored in the S3 object's metadata. Unchanged files are skipped. This
    metadata approach is reliable even for large files, where S3's multipart
-   ETag is not a plain md5.
+   ETag is not a plain md5. A missing object (404) counts as "changed" and is
+   uploaded; other errors (e.g. `AccessDenied`, throttling) are raised rather
+   than silently treated as a re-upload, so genuine problems surface.
 4. **Upload** changed/new files, storing the md5 in metadata for next time.
 
 Object keys preserve the source folder name and structure, e.g. backing up

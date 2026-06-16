@@ -53,14 +53,18 @@ def find_unused_eips(ec2):
     return [(a["AllocationId"], a["PublicIp"]) for a in addrs if "AssociationId" not in a]
 
 
-def find_idle_load_balancers(region):
+def find_idle_load_balancers(elb, elbv2):
+    # "Idle" here means a load balancer with no registered backends *at scan
+    # time* -- a classic ELB with no instances, or an ALB/NLB whose target
+    # groups have zero registered targets. This is a point-in-time snapshot,
+    # not a measure of traffic over time: an LB that is briefly empty (e.g.
+    # mid-deploy or scaled to zero) will look idle. Deletion is gated behind
+    # --delete, so review findings before acting.
     idle = []
-    elb = boto3.client("elb", region_name=region)
     for page in elb.get_paginator("describe_load_balancers").paginate():
         for lb in page["LoadBalancerDescriptions"]:
             if not lb["Instances"]:
                 idle.append(("classic", lb["LoadBalancerName"], lb["LoadBalancerName"]))
-    elbv2 = boto3.client("elbv2", region_name=region)
     for page in elbv2.get_paginator("describe_load_balancers").paginate():
         for lb in page["LoadBalancers"]:
             arn = lb["LoadBalancerArn"]
@@ -86,6 +90,8 @@ def find_idle_load_balancers(region):
 
 def scan_region(region, days, delete):
     ec2 = boto3.client("ec2", region_name=region)
+    elb = boto3.client("elb", region_name=region)
+    elbv2 = boto3.client("elbv2", region_name=region)
     actions = [
         (
             "unattached volume",
@@ -106,7 +112,7 @@ def scan_region(region, days, delete):
             "released",
         ),
     ]
-    lbs = find_idle_load_balancers(region)
+    lbs = find_idle_load_balancers(elb, elbv2)
     if not any(items for _, items, _, _ in actions) and not lbs:
         return
     print(f"[{region}]")
@@ -120,9 +126,9 @@ def scan_region(region, days, delete):
         print(f"  idle load balancer {name} ({kind})")
         if delete:
             if kind == "classic":
-                boto3.client("elb", region_name=region).delete_load_balancer(LoadBalancerName=ref)
+                elb.delete_load_balancer(LoadBalancerName=ref)
             else:
-                boto3.client("elbv2", region_name=region).delete_load_balancer(LoadBalancerArn=ref)
+                elbv2.delete_load_balancer(LoadBalancerArn=ref)
             print("    -> deleted")
     print()
 

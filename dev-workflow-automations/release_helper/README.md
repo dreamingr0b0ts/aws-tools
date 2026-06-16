@@ -20,6 +20,8 @@ generates a `CHANGELOG.md` entry from git history, commits, tags, and
 - **Local by default.** Steps 1–4 are local and reversible. Pushing to the
   remote happens **only** with `--push`; otherwise the tool prints the exact
   `git push` commands for you to run.
+- **Protected default branch.** With `--push`, the tool refuses to push
+  directly to `main`/`master` unless you add `--allow-main`.
 - **Clean tree required.** It refuses to run if the working tree has
   uncommitted changes, unless you pass `--allow-dirty`.
 - **Preview anytime** with `--dry-run` — computes the new version and changelog
@@ -53,6 +55,7 @@ python3 release_helper.py patch --dry-run  # preview only
 | `part`          | `major`, `minor`, or `patch` (positional).                      |
 | `--set X.Y.Z`   | Set an explicit version instead of bumping.                     |
 | `--push`        | Push the commit and the new tag to `origin`.                    |
+| `--allow-main`  | Permit `--push` while on `main`/`master` (default: refuse).     |
 | `--dry-run`     | Show the new version and changelog without changing anything.   |
 | `--allow-dirty` | Skip the clean-working-tree check.                              |
 
@@ -79,7 +82,9 @@ $ python3 release_helper.py minor --dry-run
   commit history (everything is "since the beginning").
 - **Changelog is raw commit subjects.** For nicer notes, write good commit
   messages or adopt Conventional Commits and post-process.
-- **`--push` respects your current branch.** It pushes `HEAD` to `origin` and
-  the new tag. Be deliberate about running it on a release branch vs. `main`.
+- **`--push` refuses the default branch by default.** It pushes `HEAD` and the
+  new tag to `origin`, but if you're on `main`/`master` it stops with an error
+  (before committing or tagging) and asks you to release from a branch and open
+  a PR, or to pass `--allow-main` to override deliberately.
 - The release commit itself appears in the *next* release's changelog range
   boundary (it's the tagged commit), so it won't clutter future changelogs.

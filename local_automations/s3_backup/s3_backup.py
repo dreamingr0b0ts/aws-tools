@@ -47,8 +47,13 @@ def ensure_bucket(s3, bucket, region, create):
 def changed(s3, bucket, key, digest):
     try:
         return s3.head_object(Bucket=bucket, Key=key)["Metadata"].get("md5") != digest
-    except ClientError:
-        return True  # object not present
+    except ClientError as e:
+        # A genuine "not found" means the object is new -> upload it. Anything
+        # else (AccessDenied, throttling, etc.) is a real problem we shouldn't
+        # mask as "changed", so re-raise it.
+        if e.response["Error"]["Code"] in ("404", "NoSuchKey"):
+            return True  # object not present
+        raise
 
 
 def iter_files(paths):

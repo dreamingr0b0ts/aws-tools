@@ -22,9 +22,13 @@ the rest of the scan continues.
 - **Dry-run is the default.** You must pass `--delete` to remove anything.
 - **Deletion is irreversible.** Deleted volumes, snapshots, released EIPs, and
   deleted load balancers cannot be recovered.
-- The "idle" heuristic is intentionally simple. A brand-new or intentionally
-  empty load balancer, or a snapshot you're keeping for compliance, will also be
-  flagged. **Always review the dry-run output before running with `--delete`.**
+- The "idle" heuristic is intentionally simple and **point-in-time**: a load
+  balancer is flagged when it has no registered backends *at the moment of the
+  scan* (a classic ELB with no instances, or an ALB/NLB whose target groups have
+  zero registered targets). It does **not** measure traffic or idle time over a
+  window, so an LB that is briefly empty (mid-deploy, scaled to zero) — or a
+  snapshot you're keeping for compliance — will also be flagged. **Always review
+  the dry-run output before running with `--delete`.**
 
 ## Requirements
 

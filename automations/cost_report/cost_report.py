@@ -64,9 +64,14 @@ def main():
     today = date.today()
     yesterday = today - timedelta(days=1)
     month_start = today.replace(day=1)
-    # On the 1st of the month MTD has no full day yet; fall back to yesterday.
+    # On the 1st of the month MTD has no full day yet; fall back to yesterday
+    # (the last day of the previous month) and label the window accordingly so
+    # it isn't misreported as "month-to-date".
     if month_start >= today:
         month_start = yesterday
+        monthly_title = f"Latest full day ({month_start} \u2192 {today})"
+    else:
+        monthly_title = f"Month-to-date ({month_start} \u2192 {today})"
 
     daily = summarize(get_costs("DAILY", yesterday.isoformat(), today.isoformat()))
     monthly = summarize(get_costs("MONTHLY", month_start.isoformat(), today.isoformat()))
@@ -74,7 +79,7 @@ def main():
     report = "\n\n".join(
         [
             format_report(f"Daily spend ({yesterday})", daily),
-            format_report(f"Month-to-date ({month_start} \u2192 {today})", monthly),
+            format_report(monthly_title, monthly),
         ]
     )
     print(report)

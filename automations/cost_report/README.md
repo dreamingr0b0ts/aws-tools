@@ -22,7 +22,9 @@ Cost Explorer is a global service, so the client is always created in
 `us-east-1` regardless of your default region.
 
 > On the 1st of the month, MTD has no full day of data yet, so the start date
-> falls back to yesterday to keep the call valid.
+> falls back to yesterday (the last day of the previous month) to keep the call
+> valid. On that day the second section is labeled **"Latest full day"** rather
+> than "Month-to-date", so the window isn't misreported.
 
 ## Requirements
 
